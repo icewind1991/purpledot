@@ -3,8 +3,11 @@
 use color_eyre::{eyre::eyre, Report, Result};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext, AVCodecID, AVCodecParametersRef, AVPacket};
 use rsmpeg::avformat::{AVFormatContextInput, AVStreamRef};
-use rsmpeg::avutil::AVFrame;
+use rsmpeg::avutil::{AVFrame, AVImage, AVPixelFormat};
+use rsmpeg::error::RsmpegError;
 use rsmpeg::ffi;
+use std::borrow::BorrowMut;
+use std::slice;
 
 pub trait FormatContextInputExt {
     fn into_packets(self) -> PacketIterator;
@@ -19,6 +22,7 @@ pub struct VideoStreamInfo {
     pub height: i32,
     pub index: i32,
     pub codec: AVCodecID,
+    pub format: AVPixelFormat,
 }
 
 impl VideoStreamInfo {
@@ -31,6 +35,7 @@ impl VideoStreamInfo {
             height,
             index: index as i32,
             codec: codec_params.codec_id,
+            format: codec_params.format,
         }
     }
 }
@@ -66,6 +71,7 @@ impl FormatContextInputExt for AVFormatContextInput {
             codec_context.open(None)?;
             (codec_context, info)
         };
+
         Ok(VideoFrames {
             packets: self.into_packets(),
             codec_context,
@@ -97,21 +103,58 @@ pub struct VideoFrames {
     pub info: VideoStreamInfo,
 }
 
+impl VideoFrames {
+    fn process_packet(&mut self) -> Option<Result<()>> {
+        let stream_index = self.info.index;
+        let packet = match self
+            .packets
+            .borrow_mut()
+            .filter(|res| match res {
+                Ok(packet) => packet.stream_index == stream_index,
+                Err(_) => true,
+            })
+            .next()
+        {
+            Some(Ok(packet)) => packet,
+            None => return None,
+            Some(Err(e)) => return Some(Err(e)),
+        };
+        Some(
+            self.codec_context
+                .send_packet(Some(&packet))
+                .map_err(Into::into),
+        )
+    }
+}
+
 impl Iterator for VideoFrames {
     type Item = Result<AVFrame>;
 
     fn next(&mut self) -> Option<Result<AVFrame>> {
-        self.packets
-            .next()
-            .filter(|res| match res {
-                Ok(packet) => packet.stream_index == self.info.index,
-                Err(_) => true,
-            })
-            .map(|res| {
-                res.and_then(|packet| {
-                    self.codec_context.send_packet(Some(&packet))?;
-                    Ok(self.codec_context.receive_frame()?)
-                })
-            })
+        loop {
+            match self.codec_context.receive_frame() {
+                Err(RsmpegError::DecoderDrainError | RsmpegError::DecoderFlushedError) => {}
+                result => return Some(result.map_err(Into::into)),
+            }
+            if let Err(e) = self.process_packet()? {
+                return Some(Err(e));
+            }
+        }
+    }
+}
+
+pub trait AVFrameExt {
+    fn data(&self) -> &[u8];
+    fn wrap(&self) -> i32;
+}
+
+impl AVFrameExt for AVFrame {
+    fn data(&self) -> &[u8] {
+        let size = AVImage::get_buffer_size(self.format, self.width, self.height, 1).unwrap();
+        unsafe { slice::from_raw_parts(self.data[0], size as usize) }
+    }
+
+    fn wrap(&self) -> i32 {
+        self.linesize[0]
     }
 }

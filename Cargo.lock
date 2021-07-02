@@ -299,16 +299,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ffimage_yuv"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e74255e35266c3ede4909fd078b939f869cf87b2fdba8f3bf878fcd2d1a10eda"
-dependencies = [
- "ffimage",
- "num-traits",
-]
-
-[[package]]
 name = "gif"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -629,7 +619,6 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "ffimage",
- "ffimage_yuv",
  "image",
  "rsmpeg",
 ]

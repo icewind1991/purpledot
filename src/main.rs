@@ -1,10 +1,13 @@
+use crate::framestream::AVFrameExt;
 use color_eyre::{eyre::eyre, Result};
 use framestream::FormatContextInputExt;
+use image::buffer::Pixels;
+use image::{ImageBuffer, Rgba};
 use rsmpeg::avformat::AVFormatContextInput;
+use rsmpeg::avutil::{AVFrameWithImage, AVImage};
+use rsmpeg::ffi::AVPixelFormat_AV_PIX_FMT_RGB32;
+use rsmpeg::swscale::SwsContext;
 use std::ffi::CString;
-use std::fs::File;
-use std::io::Write;
-use std::slice;
 
 mod framestream;
 
@@ -13,88 +16,65 @@ fn main() -> Result<()> {
     let input = AVFormatContextInput::open(&path)?;
     let frames = input.into_frames()?;
 
-    for (i, frame) in frames.take(2).enumerate() {
-        let frame = frame?;
-        let frame_filename = format!("./data/output/frame-{}.pgm", i);
+    let mut encoder = SwsContext::get_context(
+        frames.info.width,
+        frames.info.height,
+        frames.info.format,
+        frames.info.width,
+        frames.info.height,
+        AVPixelFormat_AV_PIX_FMT_RGB32,
+        0,
+    )
+    .ok_or_else(|| eyre!("Failed to create encoder"))?;
 
-        save_gray_frame(
-            unsafe { slice::from_raw_parts(frame.data[0], (frame.width * frame.height) as usize) },
-            frame.linesize[0] as usize,
-            frame.width as usize,
-            frame.height as usize,
-            frame_filename,
-        )?;
+    let image_buffer = AVImage::new(
+        AVPixelFormat_AV_PIX_FMT_RGB32,
+        frames.info.width,
+        frames.info.height,
+        1,
+    )
+    .ok_or_else(|| eyre!("Failed to allocate image buffer"))?;
+    let mut target_frame = AVFrameWithImage::new(image_buffer);
+    let mut last_center = None;
+
+    for (i, frame) in frames.enumerate() {
+        let frame = frame?;
+
+        encoder.scale_frame(&frame, 0, frame.height, &mut target_frame)?;
+
+        let image = ImageBuffer::<Rgba<u8>, _>::from_raw(
+            frame.width as u32,
+            frame.height as u32,
+            target_frame.data(),
+        )
+        .ok_or_else(|| eyre!("Failed to get image buffer"))?;
+
+        last_center = find_purple_dot(image.pixels(), frame.width as usize).or(last_center);
+        let center = last_center.ok_or_else(|| eyre!("No purple dot found"))?;
+        println!("{}, {}, {}", i, center.0, center.1);
     }
     Ok(())
 }
 
-// fn decode_packet(
-//     packet: &ffi::AVPacket,
-//     codec_context: &mut ffi::AVCodecContext,
-//     frame: &mut ffi::AVFrame,
-// ) -> Result<(), String> {
-//     let mut response = unsafe { ffi::avcodec_send_packet(codec_context, packet) };
-//
-//     if response < 0 {
-//         return Err(String::from("Error while sending a packet to the decoder."));
-//     }
-//
-//     while response >= 0 {
-//         response = unsafe { ffi::avcodec_receive_frame(codec_context, frame) };
-//         if response == ffi::AVERROR(ffi::EAGAIN) || response == ffi::AVERROR_EOF {
-//             break;
-//         } else if response < 0 {
-//             return Err(String::from(
-//                 "Error while receiving a frame from the decoder.",
-//             ));
-//         } else {
-//             println!(
-//                 "Frame {} (type={}, size={} bytes) pts {} key_frame {} [DTS {}]",
-//                 codec_context.frame_number,
-//                 unsafe { ffi::av_get_picture_type_char(frame.pict_type) },
-//                 frame.pkt_size,
-//                 frame.pts,
-//                 frame.key_frame,
-//                 frame.coded_picture_number
-//             );
-//
-//             let frame_filename = format!("./data/output/frame-{}.pgm", codec_context.frame_number);
-//             let width = frame.width as usize;
-//             let height = frame.height as usize;
-//             let wrap = frame.linesize[0] as usize;
-//             let data = unsafe { slice::from_raw_parts(frame.data[0], wrap * height) };
-//
-//             if frame.format != AVPixelFormat_AV_PIX_FMT_YUV420P {
-//                 panic!("Input has to be yuv420p, got :{}", frame.format);
-//             }
-//
-//             unsafe {
-//                 // ffi::sws_scale(codec_context, frame.data,
-//                 //                wrap, 0, height, pFrameRGB->data,
-//                 //                pFrameRGB->linesize);
-//             }
-//
-//             dbg!(wrap, width, height);
-//
-//             save_gray_frame(data, wrap, width, height, frame_filename).unwrap();
-//         }
-//     }
-//     Ok(())
-// }
+fn find_purple_dot(pixel: Pixels<Rgba<u8>>, width: usize) -> Option<(usize, usize)> {
+    let mut center_x = 0;
+    let mut center_y = 0;
+    let mut count = 0;
 
-fn save_gray_frame(
-    buf: &[u8],
-    wrap: usize,
-    xsize: usize,
-    ysize: usize,
-    filename: String,
-) -> Result<()> {
-    let mut file = File::create(filename)?;
-    let data = format!("P5\n{} {}\n{}\n", xsize, ysize, 255);
-    file.write_all(data.as_bytes())?;
+    for (i, pixel) in pixel.enumerate() {
+        let y = i / width;
+        let x = i % width;
 
-    for i in 0..ysize {
-        file.write_all(&buf[i * wrap..(i * wrap + xsize)])?;
+        if pixel[0] > 215 && pixel[1] < 10 && pixel[2] > 215 {
+            center_x += x;
+            center_y += y;
+            count += 1;
+        }
     }
-    Ok(())
+
+    if count > 0 {
+        Some((center_x / count, center_y / count))
+    } else {
+        None
+    }
 }
