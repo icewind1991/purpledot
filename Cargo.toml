@@ -4,7 +4,14 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-rusty_ffmpeg = "0.7"
 image = "0.23"
-ffimage = "0.9.0"
-ffimage_yuv = "0.9.0"
+ffimage = "0.9"
+ffimage_yuv = "0.9"
+rsmpeg = "0.6"
+color-eyre = "0.5"
+
+[profile.dev.package.backtrace]
+opt-level = 3
+
+[profile.dev.package.rsmpeg]
+opt-level = 3
