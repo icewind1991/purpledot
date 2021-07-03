@@ -71,8 +71,8 @@ fn main() -> Result<()> {
 
         last_center = find_purple_dot(image.pixels(), frame.width as usize).or(last_center);
         let center = last_center.ok_or_else(|| eyre!("No purple dot found"))?;
-        writeln!(&mut output, "txt[{}] = \"{}, {}\";", i, center.0, center.1)?;
-        println!("txt[{}] = \"{}, {}\";", i, center.0, center.1);
+        writeln!(&mut output, "txt[{}] = [{}, {}];", i, center.0, center.1)?;
+        println!("txt[{}] = [{}, {}];", i, center.0, center.1);
     }
     Ok(())
 }
