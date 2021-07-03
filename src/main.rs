@@ -7,12 +7,22 @@ use rsmpeg::avformat::AVFormatContextInput;
 use rsmpeg::avutil::{AVFrameWithImage, AVImage};
 use rsmpeg::ffi::AVPixelFormat_AV_PIX_FMT_RGB32;
 use rsmpeg::swscale::SwsContext;
+use std::env::args;
 use std::ffi::CString;
 
 mod framestream;
 
 fn main() -> Result<()> {
-    let path = CString::new("data/track3.mp4")?;
+    let mut args = args();
+    let bin = args.next().unwrap();
+    let input = match args.next() {
+        Some(arg) => arg,
+        None => {
+            println!("Usage {} <input video>", bin);
+            return Ok(());
+        }
+    };
+    let path = CString::new(input)?;
     let input = AVFormatContextInput::open(&path)?;
     let frames = input.into_frames()?;
 
