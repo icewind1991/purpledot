@@ -1,0 +1,100 @@
+name: CI
+
+on: [ push, pull_request ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: x86_64-unknown-linux-musl
+
+      # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
+      - name: Install FFmpegBuildTools
+        run: |
+          sudo apt-get update -qq && sudo apt-get -y install \
+            autoconf \
+            automake \
+            build-essential \
+            cmake \
+            git-core \
+            libass-dev \
+            libfreetype6-dev \
+            libgnutls28-dev \
+            libsdl2-dev \
+            libtool \
+            libva-dev \
+            libvdpau-dev \
+            libvorbis-dev \
+            libxcb1-dev \
+            libxcb-shm0-dev \
+            libxcb-xfixes0-dev \
+            pkg-config \
+            texinfo \
+            wget \
+            yasm \
+            zlib1g-dev
+          sudo apt-get -y install nasm
+          sudo apt-get -y install libx264-dev
+          sudo apt-get -y install libx265-dev libnuma-dev
+          sudo apt-get -y install libvpx-dev
+          sudo apt-get -y install libfdk-aac-dev
+          sudo apt-get -y install libmp3lame-dev
+          sudo apt-get -y install libopus-dev
+      - run: |
+          git clone https://github.com/ffmpeg/ffmpeg --depth 1
+          cd ffmpeg
+          mkdir build
+          cd build
+          ../configure --prefix=${PWD}/build
+          make -j$(nproc)
+          make install
+          cp -r ./build ~/ffmpeg_build
+          cd ../..
+      - name: Build
+        run: |
+          FFMPEG_INCLUDE_DIR=${HOME}/ffmpeg_build/include \
+          FFMPEG_PKG_CONFIG_PATH=${HOME}/ffmpeg_build/lib/pkgconfig \
+          cargo build --release --target x86_64-unknown-linux-musl
+      - uses: actions/upload-artifact@v2
+        with:
+          name: purpledot
+          path: target/x86_64-unknown-linux-musl/release/purpledot
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      # Using this since it's used by clang-sys's CI
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "10.0"
+          directory: ${{ github.workspace }}/clang
+
+      - name: Clone vcpkg FFmpeg
+        run: git clone https://github.com/microsoft/vcpkg --depth 1
+      - name: Bootstrap vcpkg FFmpeg
+        run: ./vcpkg/bootstrap-vcpkg.bat
+      - name: Vcpkg install ffmpeg
+        run: ./vcpkg/vcpkg.exe install ffmpeg:x64-windows-static
+
+      - name: Build
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+          LIBCLANG_PATH: ${{ github.workspace }}/clang/lib
+          LLVM_CONFIG_PATH: ${{ github.workspace }}/clang/bin/llvm-config
+        run: cargo build --release
+      - uses: actions/upload-artifact@v2
+        with:
+          name: purpledot.exe
+          path: target/release/purpledot.exe
