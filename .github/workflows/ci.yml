@@ -4,7 +4,7 @@ on: [ push, pull_request ]
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -12,7 +12,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          target: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v1
 
       # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
       - name: Install FFmpegBuildTools
@@ -46,7 +46,16 @@ jobs:
           sudo apt-get -y install libfdk-aac-dev
           sudo apt-get -y install libmp3lame-dev
           sudo apt-get -y install libopus-dev
-      - run: |
+
+      - name: Cache ffmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v2
+        with:
+          path: ffmpeg_build
+          key: ${{ runner.os }}-ffmpeg
+      - name: Build ffmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: |
           git clone https://github.com/ffmpeg/ffmpeg --depth 1
           cd ffmpeg
           mkdir build
@@ -60,11 +69,11 @@ jobs:
         run: |
           FFMPEG_INCLUDE_DIR=${HOME}/ffmpeg_build/include \
           FFMPEG_PKG_CONFIG_PATH=${HOME}/ffmpeg_build/lib/pkgconfig \
-          cargo build --release --target x86_64-unknown-linux-musl
+          cargo build --release
       - uses: actions/upload-artifact@v2
         with:
           name: purpledot
-          path: target/x86_64-unknown-linux-musl/release/purpledot
+          path: target/release/purpledot
   build-windows:
     runs-on: windows-latest
     steps:
@@ -74,6 +83,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v1
       # Using this since it's used by clang-sys's CI
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
@@ -81,12 +91,19 @@ jobs:
           version: "10.0"
           directory: ${{ github.workspace }}/clang
 
-      - name: Clone vcpkg FFmpeg
-        run: git clone https://github.com/microsoft/vcpkg --depth 1
-      - name: Bootstrap vcpkg FFmpeg
-        run: ./vcpkg/bootstrap-vcpkg.bat
+      - name: Cache vcpkg
+        id: cache-vcpkg
+        uses: actions/cache@v2
+        with:
+          path: vcpkg
+          key: ${{ runner.os }}-vcpkg
+
       - name: Vcpkg install ffmpeg
-        run: ./vcpkg/vcpkg.exe install ffmpeg:x64-windows-static
+        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/microsoft/vcpkg --depth 1
+          ./vcpkg/bootstrap-vcpkg.bat
+          ./vcpkg/vcpkg.exe install ffmpeg:x64-windows-static
 
       - name: Build
         env:
