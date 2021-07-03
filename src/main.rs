@@ -9,6 +9,7 @@ use rsmpeg::ffi::AVPixelFormat_AV_PIX_FMT_RGB32;
 use rsmpeg::swscale::SwsContext;
 use std::env::args;
 use std::ffi::CString;
+use std::io::Write;
 
 mod framestream;
 
@@ -22,6 +23,7 @@ fn main() -> Result<()> {
             return Ok(());
         }
     };
+    let out_path = format!("{}.dot.txt", input);
     let path = CString::new(input)?;
     let input = AVFormatContextInput::open(&path)?;
     let frames = input.into_frames()?;
@@ -47,6 +49,11 @@ fn main() -> Result<()> {
     let mut target_frame = AVFrameWithImage::new(image_buffer);
     let mut last_center = None;
 
+    let mut output = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(out_path)?;
+
     for (i, frame) in frames.enumerate() {
         let frame = frame?;
 
@@ -61,6 +68,7 @@ fn main() -> Result<()> {
 
         last_center = find_purple_dot(image.pixels(), frame.width as usize).or(last_center);
         let center = last_center.ok_or_else(|| eyre!("No purple dot found"))?;
+        writeln!(&mut output, "{}, {}, {}", i, center.0, center.1)?;
         println!("{}, {}, {}", i, center.0, center.1);
     }
     Ok(())
