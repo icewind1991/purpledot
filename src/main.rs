@@ -86,7 +86,7 @@ fn find_purple_dot(pixel: Pixels<Rgba<u8>>, width: usize) -> Option<(usize, usiz
         let y = i / width;
         let x = i % width;
 
-        if pixel[0] > 215 && pixel[1] < 10 && pixel[2] > 215 {
+        if pixel[0] > 215 && pixel[1] < 40 && pixel[2] > 215 {
             center_x += x;
             center_y += y;
             count += 1;
