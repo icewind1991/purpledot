@@ -47,7 +47,6 @@ fn main() -> Result<()> {
     )
     .ok_or_else(|| eyre!("Failed to allocate image buffer"))?;
     let mut target_frame = AVFrameWithImage::new(image_buffer);
-    let mut last_center = None;
 
     let mut output = std::fs::OpenOptions::new()
         .write(true)
@@ -69,8 +68,8 @@ fn main() -> Result<()> {
         )
         .ok_or_else(|| eyre!("Failed to get image buffer"))?;
 
-        last_center = find_purple_dot(image.pixels(), frame.width as usize).or(last_center);
-        let center = last_center.ok_or_else(|| eyre!("No purple dot found"))?;
+        let center =
+            find_purple_dot(image.pixels(), frame.width as usize).unwrap_or((10000, 10000));
         writeln!(&mut output, "txt[{}] = [{}, {}];", i, center.0, center.1)?;
         println!("txt[{}] = [{}, {}];", i, center.0, center.1);
     }
@@ -93,7 +92,7 @@ fn find_purple_dot(pixel: Pixels<Rgba<u8>>, width: usize) -> Option<(usize, usiz
         }
     }
 
-    if count > 0 {
+    if count > 5 {
         Some((center_x / count, center_y / count))
     } else {
         None
