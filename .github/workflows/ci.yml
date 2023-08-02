@@ -69,7 +69,7 @@ jobs:
         run: |
           FFMPEG_INCLUDE_DIR=${HOME}/ffmpeg_build/include \
           FFMPEG_PKG_CONFIG_PATH=${HOME}/ffmpeg_build/lib/pkgconfig \
-          cargo build --release
+          cargo build --release --locked
       - uses: actions/upload-artifact@v2
         with:
           name: purpledot
@@ -110,7 +110,7 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
           LIBCLANG_PATH: ${{ github.workspace }}/clang/lib
           LLVM_CONFIG_PATH: ${{ github.workspace }}/clang/bin/llvm-config
-        run: cargo build --release
+        run: cargo build --release --locked
       - uses: actions/upload-artifact@v2
         with:
           name: purpledot.exe
