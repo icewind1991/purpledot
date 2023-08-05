@@ -67,7 +67,7 @@ impl FormatContextInputExt for AVFormatContextInput {
                 .ok_or_else(|| eyre!("No decoder found for codec {}", info.codec))?;
 
             let mut codec_context = AVCodecContext::new(&decoder);
-            codec_context.apply_codecpar(codec_params)?;
+            codec_context.apply_codecpar(&codec_params)?;
             codec_context.open(None)?;
             (codec_context, info)
         };
