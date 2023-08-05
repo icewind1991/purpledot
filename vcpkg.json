@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "ffmpeg:x64-windows-static",
+  ],
+  "builtin-baseline": "9d47b24eacbd1cd94f139457ef6cd35e5d92cc84",
+  "overrides": [
+    { "name": "ffmpeg:x64-windows-static", "version": "5.1.2" }
+  ]
+}
