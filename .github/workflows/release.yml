@@ -1,11 +1,8 @@
 name: CI
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - master
+  release:
+    types: [published]
 
 jobs:
   build-linux:
@@ -73,10 +70,12 @@ jobs:
           FFMPEG_INCLUDE_DIR=${HOME}/ffmpeg_build/include \
           FFMPEG_PKG_CONFIG_PATH=${HOME}/ffmpeg_build/lib/pkgconfig \
           cargo build --release --locked
-      - uses: actions/upload-artifact@v3
+      - uses: svenstaro/upload-release-action@v2
         with:
-          name: purpledot
-          path: target/release/purpledot
+          asset_name: purpledot
+          file: target/release/purpledot
+          tag: ${{ github.ref }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
     runs-on: windows-latest
@@ -113,7 +112,9 @@ jobs:
           LIBCLANG_PATH: ${{ github.workspace }}/clang/lib
           LLVM_CONFIG_PATH: ${{ github.workspace }}/clang/bin/llvm-config
         run: cargo build --release --locked
-      - uses: actions/upload-artifact@v3
+      - uses: svenstaro/upload-release-action@v2
         with:
-          name: purpledot.exe
-          path: target/release/purpledot.exe
+          asset_name: purpledot.exe
+          file: target/release/purpledot.exe
+          tag: ${{ github.ref }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
