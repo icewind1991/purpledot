@@ -4,15 +4,13 @@ on: [ push, pull_request ]
 
 jobs:
   build-linux:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
-          override: true
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
       - name: Install FFmpegBuildTools
@@ -49,7 +47,7 @@ jobs:
 
       - name: Cache ffmpeg
         id: cache-ffmpeg
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/ffmpeg_build
           key: ${{ runner.os }}-ffmpeg
@@ -70,20 +68,18 @@ jobs:
           FFMPEG_INCLUDE_DIR=${HOME}/ffmpeg_build/include \
           FFMPEG_PKG_CONFIG_PATH=${HOME}/ffmpeg_build/lib/pkgconfig \
           cargo build --release --locked
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: purpledot
           path: target/release/purpledot
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: stable
-          override: true
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
       # Using this since it's used by clang-sys's CI
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
@@ -93,7 +89,7 @@ jobs:
 
       - name: Cache vcpkg
         id: cache-vcpkg
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: vcpkg
           key: ${{ runner.os }}-vcpkg
@@ -103,9 +99,7 @@ jobs:
         run: |
           git clone https://github.com/microsoft/vcpkg -b 2023.07.21 --single-branch --depth 1
           ./vcpkg/bootstrap-vcpkg.bat
-          cp ${{ github.workspace }}/vcpkg.json ./vcpkg/ 
-          ./vcpkg/vcpkg x-update-baseline --add-initial-baseline
-          ./vcpkg/vcpkg.exe install
+          ./vcpkg/vcpkg.exe install ffmpeg:x64-windows-static --triplet x86-windows
 
       - name: Build
         env:
@@ -113,7 +107,7 @@ jobs:
           LIBCLANG_PATH: ${{ github.workspace }}/clang/lib
           LLVM_CONFIG_PATH: ${{ github.workspace }}/clang/bin/llvm-config
         run: cargo build --release --locked
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: purpledot.exe
           path: target/release/purpledot.exe
